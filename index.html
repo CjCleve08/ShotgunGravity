@@ -1,0 +1,325 @@
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gun Rotation Game with Shooting</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+    }
+    canvas {
+        border: 1px solid black;
+        margin: 20px auto;
+    }
+</style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+
+    <script>
+        let canvas = document.getElementById('gameCanvas');
+        let ctx = canvas.getContext('2d');
+
+        let backgroundImage = new Image();
+        backgroundImage.src = 'Background.jpg';
+
+        let playerImage = new Image();
+        playerImage.src = 'DefaultPlayer.png'; // Provide the path to your player image
+
+        let gunImage = new Image();
+        gunImage.src = 'Shotgun.png'; // Provide the path to your gun image
+
+        let arrowImage = new Image();
+        arrowImage.src = 'Arrow.png'; // Provide the path to your arrow image
+
+        let bulletImage = new Image();
+        bulletImage.src = 'Bullet.png'; // Provide the path to your power-up image
+
+        let shotgunSound = new Audio('ShotgunSound.wav');
+        let bulletPickupSound = new Audio('BulletPickupSound.wav');
+
+        backgroundImage.onload = function() {
+            playerImage.onload = function() {
+                gunImage.onload = function() {
+                    arrowImage.onload = function() {
+                        bulletImage.onload = function() {
+                            init();
+                        }
+                    }
+                }
+            }
+        };
+
+        function init() {
+            let playerData = {
+                x: canvas.width / 2,
+                y: canvas.height / 2,
+                width: 17 * 2, // Adjust player width here
+                height: 32 * 2, // Adjust player height here
+                velocityX: 0,
+                velocityY: 0,
+                gravity: { // Adjust gravity direction and strength here
+                    x: 0,
+                    y: 0.05
+                },
+                gravityIntinsity: 0.05,
+                impulse: 4, // Adjust impulse strength here
+                bullets: 6, // Total number of bullets
+                score: 0,
+                isDead: false
+            };
+
+            let gunLength = 50;
+            let gunAngle = 0;
+
+            let bullets = [];
+            let powerUp = {
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                width: 303 / 5,
+                height: 118 / 5
+            };
+
+            let mousePos = {
+                x: 0,
+                y: 0
+            }
+
+            canvas.addEventListener('mousemove', rotateGun);
+            canvas.addEventListener('click', shootBullet);
+
+            function drawPlayer(x, y) {
+                ctx.drawImage(playerImage, x - playerData.width / 2, y - playerData.height / 2, playerData.width, playerData.height);
+            }
+
+            function drawGun() {
+                let gunWidth = 374 / 3; // Adjust gun width here
+                let gunHeight = 32 / 3; // Adjust gun height here
+
+                // Calculate the position of the gun relative to the player's position
+                let gunX = playerData.x;
+                let gunY = playerData.y;
+
+                ctx.save(); // Save the current state of the canvas
+                ctx.translate(gunX, gunY); // Translate to the gun's position
+                ctx.rotate(gunAngle); // Rotate by the gun angle
+                ctx.drawImage(gunImage, -gunWidth / 2, -gunHeight / 2, gunWidth, gunHeight); // Draw the gun at the translated position
+                ctx.restore(); // Restore the saved state to avoid affecting other drawings
+            }
+
+            function drawBullet(bullet) {
+                ctx.save(); // Save the current state of the canvas
+                ctx.translate(bullet.x, bullet.y); // Translate to the gun's position
+                ctx.rotate(bullet.angle); // Rotate by the gun angle
+                ctx.drawImage(bulletImage, -bullet.width / 2, -bullet.height / 2, bullet.width, bullet.height);
+                ctx.restore(); // Restore the saved state to avoid affecting other drawings
+            }
+
+            function drawBulletCounter() {
+                ctx.fillStyle = 'black';
+                ctx.font = '20px Arial';
+                ctx.fillText('Bullets: ' + playerData.bullets, 60, 30);
+            }
+
+            function drawScore() {
+                ctx.fillStyle = 'black';
+                ctx.font = '20px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('Score: ' + playerData.score, canvas.width / 2, 30);
+            }
+
+            function drawPowerUp() {
+                if (!powerUp.collected) {
+                    ctx.drawImage(bulletImage, powerUp.x - powerUp.width / 2, powerUp.y - powerUp.height / 2, powerUp.width, powerUp.height);
+                }
+            }
+
+            function updateCanvas() {
+                canvas.width = window.innerWidth - 100;
+                canvas.height = window.innerHeight - 100;
+            }
+
+            function drawBackground() {
+                // Calculate the number of times to repeat the image horizontally and vertically
+                const repeatX = Math.ceil(canvas.width / backgroundImage.width);
+                const repeatY = Math.ceil(canvas.height / backgroundImage.height);
+
+                // Loop through each repetition
+                for (let y = 0; y < repeatY; y++) {
+                    for (let x = 0; x < repeatX; x++) {
+                        // Draw the image at the correct position
+                        ctx.drawImage(backgroundImage, x * backgroundImage.width, y * backgroundImage.height);
+                    }
+                }
+            }
+
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                drawBackground();
+                drawPlayer(playerData.x, playerData.y);
+                drawGun();
+                drawBulletCounter();
+                drawArrow();
+                drawScore();
+                drawPowerUp();
+                bullets.forEach(drawBullet);
+            }
+
+            function rotateGun(event) {
+                mousePos.x = event.clientX - canvas.offsetLeft;
+                mousePos.y = event.clientY - canvas.offsetTop;
+
+                gunAngle = Math.atan2(mousePos.y - playerData.y, mousePos.x - playerData.x);
+            }
+
+            function shootBullet() {
+                if (playerData.bullets > 0) {
+                    let bulletSpeed = 5; // Adjust bullet speed here
+                    let bullet = {
+                        width: 303 / 10,
+                        height: 118 / 10,
+                        x: playerData.x + Math.cos(gunAngle) * gunLength,
+                        y: playerData.y + Math.sin(gunAngle) * gunLength,
+                        velocityX: Math.cos(gunAngle) * bulletSpeed,
+                        velocityY: Math.sin(gunAngle) * bulletSpeed,
+                        angle: Math.atan2(mousePos.y - playerData.y, mousePos.x - playerData.x) - Math.PI
+                    };
+                    bullets.push(bullet);
+
+                    // Apply impulse to the player in the opposite direction of the shot
+                    playerData.velocityX -= Math.cos(gunAngle) * playerData.impulse;
+                    playerData.velocityY -= Math.sin(gunAngle) * playerData.impulse;
+
+                    playerData.bullets--; // Decrement the bullet count
+
+                    // Play sound
+                    shotgunSound.play();
+                }
+            }
+
+            // Increment score every second
+            setInterval(updateScore, 1000);
+
+            function updateScore() {
+                playerData.score++; // Increment the score
+            }
+
+            function updateBullets() {
+                bullets.forEach(function(bullet) {
+                    bullet.x += bullet.velocityX;
+                    bullet.y += bullet.velocityY;
+                });
+                // Remove bullets that go off-screen
+                bullets = bullets.filter(function(bullet) {
+                    return bullet.x > 0 && bullet.x < canvas.width &&
+                        bullet.y > 0 && bullet.y < canvas.height;
+                });
+            }
+
+            function updatePlayer() {
+                playerData.x += playerData.velocityX;
+                playerData.y += playerData.velocityY;
+                playerData.velocityY += playerData.gravity.y;
+
+                // Check if the player has gone too far up or down
+                if (playerData.y - playerData.height > canvas.height || playerData.y + playerData.height < 0) {
+                    if (playerData.isDead) {return;} // Return if the player is already dead
+
+                    //Turn isDead to true
+                    playerData.isDead = true;
+
+                    // Player lost
+                    alert("Game Over! Your score was: " + playerData.score);
+                    window.location.reload();
+                }
+
+                // Wrap around horizontally
+                if (playerData.x > canvas.width + playerData.width / 2) {
+                    playerData.x = -playerData.width / 2;
+                } else if (playerData.x < -playerData.width / 2) {
+                    playerData.x = canvas.width + playerData.width / 2;
+                }
+            }
+
+            let currentAngle = 0; // Initialize the current angle
+            let angleDir = 1;
+            let angleSpeed = 0.005;
+            let angleSinceLastChanged = 0;
+
+            function updateGravityDirection() {
+                // Update the angle in each frame update
+                currentAngle += angleSpeed * angleDir; // You can adjust the speed here
+                angleSinceLastChanged++;
+
+                // Randomly change gravity dir
+                if (angleSinceLastChanged > 90){
+                    angleSinceLastChanged = 0;
+                    angleDir = Math.random() > 0.5? 1: -1;
+                }
+
+                // Set the gravity direction based on the current angle
+                playerData.gravity.x = Math.cos(currentAngle) * playerData.gravityIntinsity;
+                playerData.gravity.y = Math.sin(currentAngle) * playerData.gravityIntinsity;
+            }
+
+            function powerUpHit() {
+                // Check for collision between player and power-up
+                return playerData.x < powerUp.x + powerUp.width &&
+                       playerData.x + playerData.width > powerUp.x &&
+                       playerData.y < powerUp.y + powerUp.height &&
+                       playerData.y + playerData.height > powerUp.y;
+            }
+
+            function collectPowerUp() {
+                if (powerUpHit()) {
+                    playerData.bullets += 2; // Increase bullets by 2
+                    // Generate a new random position for the power-up
+                    powerUp.x = Math.random() * (canvas.width / 1.5) + (canvas.width / 4);
+                    powerUp.y = Math.random() * (canvas.height / 1.5) + (canvas.width / 4);
+
+                    // Play sound
+                    bulletPickupSound.play();
+                }
+            }
+
+            function drawArrow() {
+                let arrowWidth = 3400 / 20;
+                let arrowHeight = 4300 / 20;
+                let arrowX = canvas.width - arrowWidth - 10;
+                let arrowY = 10;
+
+                // Calculate the rotation angle based on gravity direction
+                let angle = -Math.atan2(playerData.gravity.y, playerData.gravity.x) - Math.PI / 2; // Adjust for initial arrow orientation
+
+                // Circle around arrow
+                ctx.beginPath();
+                ctx.arc(arrowX + arrowWidth / 2, arrowY + arrowHeight / 2, arrowWidth / 2, 0, 2 * Math.PI, false);
+                ctx.lineWidth = 2;
+                ctx.fillStyle = 'red';
+                ctx.fill();
+                ctx.strokeStyle = 'black'; // Border color
+                ctx.stroke();
+
+                ctx.save(); // Save the current state of the canvas
+                ctx.translate(arrowX + arrowWidth / 2, arrowY + arrowHeight / 2); // Translate to the arrow's position
+                ctx.rotate(angle); // Rotate by the angle calculated from gravity direction
+                ctx.drawImage(arrowImage, -arrowWidth / 2, -arrowHeight / 2, arrowWidth, arrowHeight); // Draw the arrow at the translated position
+                ctx.restore(); // Restore the saved state to avoid affecting other drawings
+            }
+
+            function update() {
+                updatePlayer();
+                updateGravityDirection(); // Update gravity direction
+                updateBullets();
+                collectPowerUp(); // Collect power-up if hit
+                updateCanvas();
+                draw();
+                requestAnimationFrame(update);
+            }
+
+            update();
+        }
+    </script>
+</body>
+</html>
